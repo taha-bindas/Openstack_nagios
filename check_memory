@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
-#### Author : Taha Ali / Dan Barker
+#### Original Author : Taha Ali,
+#### Modified by: Dan Barker
 #### Created: 09/01/2015
 #### Updated: 03/05/2024 (Python 3)
-#### Contact: tahazohair@gmail.com / firstname at yearbook dot com
+#### Contact: tahazohair@gmail.com, github.com/danbarker
 ###
 ##
 # Summary: This script calculates how much total and swap memory is available.
@@ -23,38 +24,38 @@ WARN = 1
 CRIT = 2
 UNKNOWN = 3
 
-# Parameters optioning
 parser = argparse.ArgumentParser(
-    usage="%(prog)s -c <critical_value> -w <warning_value> -sc <swap_critical> -sw <swap_warning>\nAuthor:\t\tTaha Ali \nContact:\ttahazohair@gmail.com",
-    prog='check_mem.py',
+    usage="%(prog)s -c <critical_pc> -w <warning_pc> -sc <swap_critical_pc> -sw <swap_warning_pc>",
+    prog='check_memory',
     description='This script calculates available system and swap memory accounting for buffers and caches.'
 )
+
 parser.add_argument('-c', '--critical',
-                    dest="critical",
+                    dest="critical_pc",
                     default=90.0,
                     type=float,
-                    help="Critical value in percentage for RAM usage, default set at 90%.")
+                    help="Critical value in percentage for RAM usage, default set at 90")
 parser.add_argument('-w', '--warning',
-                    dest="warning",
+                    dest="warning_pc",
                     default=85.0,
                     type=float,
-                    help="Warning value in percentage for RAM usage, default set at 85%.")
+                    help="Warning value in percentage for RAM usage, default set at 85")
 parser.add_argument('-sc', '--swap_critical',
-                    dest="swap_critical",
+                    dest="swap_critical_pc",
                     default=90.0,
                     type=float,
-                    help="Critical value in percentage for swap usage, default set at 90%.")
+                    help="Critical value in percentage for swap usage, default set at 90")
 parser.add_argument('-sw', '--swap_warning',
-                    dest="swap_warning",
+                    dest="swap_warning_pc",
                     default=85.0,
                     type=float,
-                    help="Warning value in percentage for swap usage, default set at 85%.")
+                    help="Warning value in percentage for swap usage, default set at 85")
 options = parser.parse_args()
 
-critical = options.critical
-warning = options.warning
-swap_critical = options.swap_critical
-swap_warning = options.swap_warning
+critical = options.critical_pc
+warning = options.warning_pc
+swap_critical = options.swap_critical_pc
+swap_warning = options.swap_warning_pc
 
 # Read memory info
 entry = {}
