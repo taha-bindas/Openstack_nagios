@@ -1,80 +1,130 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
-#### Author : Taha Ali
+#### Author : Taha Ali / Dan Barker
 #### Created: 09/01/2015
-#### Contact: tahazohair@gmail.com
+#### Updated: 03/05/2024 (Python 3)
+#### Contact: tahazohair@gmail.com / firstname at yearbook dot com
 ###
 ##
-# Summary: this is script or program calculates how much total memory is available.
-# it also takes in account for buffers and Caches. Defaults are set at 85% for warning and 90% for critical
+# Summary: This script calculates how much total and swap memory is available.
+# It also takes into account buffers and caches. Defaults are set at 85% for warning and 90% for critical
+# for both RAM and swap memory.
 ##
 ###
 
 import sys
-import optparse
+import argparse
 
 __author__ = 'bindas'
 
-# nagios exit status
+# Nagios exit status
 OK = 0
 WARN = 1
 CRIT = 2
 UNKNOWN = 3
 
 # Parameters optioning
-parser = optparse.OptionParser(
-    usage="%prog -c <critical_value> -w <warning_value> \nAuthor:\t\tTaha Ali \nContact:\ttahazohair@gmail.com",
+parser = argparse.ArgumentParser(
+    usage="%(prog)s -c <critical_value> -w <warning_value> -sc <swap_critical> -sw <swap_warning>\nAuthor:\t\tTaha Ali \nContact:\ttahazohair@gmail.com",
     prog='check_mem.py',
-    version='1.0',
+    description='This script calculates available system and swap memory accounting for buffers and caches.'
 )
-parser.add_option('-c', '--critical',
-                  dest="critical",
-                  default="90",
-                  type="float",
-                  help="critical value in percentage, Default set at 90%",
-                  )
-parser.add_option('-w', '--warning',
-                  dest="warning",
-                  default="85",
-                  type="float",
-                  help="warning value in percentage, Default set at 85%",
-                  )
-(options, args) = parser.parse_args()
+parser.add_argument('-c', '--critical',
+                    dest="critical",
+                    default=90.0,
+                    type=float,
+                    help="Critical value in percentage for RAM usage, default set at 90%.")
+parser.add_argument('-w', '--warning',
+                    dest="warning",
+                    default=85.0,
+                    type=float,
+                    help="Warning value in percentage for RAM usage, default set at 85%.")
+parser.add_argument('-sc', '--swap_critical',
+                    dest="swap_critical",
+                    default=90.0,
+                    type=float,
+                    help="Critical value in percentage for swap usage, default set at 90%.")
+parser.add_argument('-sw', '--swap_warning',
+                    dest="swap_warning",
+                    default=85.0,
+                    type=float,
+                    help="Warning value in percentage for swap usage, default set at 85%.")
+options = parser.parse_args()
 
-# get data from parameters optioning and feed it into warning and critical variables
 critical = options.critical
 warning = options.warning
+swap_critical = options.swap_critical
+swap_warning = options.swap_warning
 
+# Read memory info
+entry = {}
 with open('/proc/meminfo', 'r') as memfile:
-    entry = {}
     for line in memfile:
-        line = line.strip()
-        line = line.replace('kB', '')
-        if not line: break
-        name, value = map(str.strip, line.split(':'))
-        entry[name] = value
+        line = line.strip().replace('kB', '').split(':')
+        if line[0]:
+            entry[line[0].strip()] = int(line[1].strip())
 
-# get and calculate free memory value
-free = int(entry['MemFree']) + int(entry['Buffers']) + int(entry['Cached'])
-# get total memory value
-total = int(entry['MemTotal'])
-
+# Calculate free memory
+free = entry['MemFree'] + entry.get('Buffers', 0) + entry.get('Cached', 0)
+# Total memory
+total = entry['MemTotal']
+# Calculate swap usage
+swap_free = entry['SwapFree']
+swap_total = entry['SwapTotal']
 
 def mem_load():
-    # change to percentage
-    use_percent = 100 - ((free * 100) / total)
-    if use_percent >= critical:
-        print "CRITICAL: memory (ram) over", use_percent, '%', "used"
-        sys.exit(CRIT)
-    elif warning <= use_percent < critical:
-        print "WARNING: memory (ram) over", use_percent, '%', "used"
-        sys.exit(WARN)
-    elif use_percent < warning:
-        print "OK: memory is only", use_percent, '%', "used"
-        sys.exit(OK)
-    else:
-        print ("UNKNOWN: unable to process free memory\n", use_percent)
-        sys.exit(UNKNOWN)
+    # Memory usage calculation
+    mem_used = total - free
+    swap_used = swap_total - swap_free
 
+    # Convert from kB to GB for easier interpretation
+    mem_used_gb = mem_used / 1024 / 1024
+    total_gb = total / 1024 / 1024
+    swap_used_gb = swap_used / 1024 / 1024
+    swap_total_gb = swap_total / 1024 / 1024
+
+    # Percentage calculation
+    mem_use_percent = 100 - ((free * 100) / total)
+
+    # Swap percentage calculation. If swap_total is 0, set swap_use_percent to 0
+    if swap_total == 0:
+        swap_use_percent = 0
+    else:
+        swap_use_percent = 100 - ((swap_free * 100) / swap_total)
+
+    # Performance data with more detail
+    mem_perf_data = f"mem_used_pc={mem_use_percent}%;{warning};{critical};0;100 " \
+                    f"mem_used_gb={mem_used_gb:.2f}GB; mem_total_gb={total_gb:.2f}GB"
+    swap_perf_data = f"swap_used_pc={swap_use_percent}%;{swap_warning};{swap_critical};0;100 " \
+                     f"swap_used_gb={swap_used_gb:.2f}GB; swap_total_gb={swap_total_gb:.2f}GB"
+
+    # Determine the highest severity status
+    max_status = OK
+    messages = []
+
+    if mem_use_percent >= critical:
+        messages.append(f"CRITICAL: RAM over {mem_use_percent:.2f}% used")
+        max_status = CRIT
+    elif warning <= mem_use_percent < critical:
+        messages.append(f"WARNING: RAM over {mem_use_percent:.2f}% used")
+        if max_status < WARN:
+            max_status = WARN
+
+    if swap_use_percent >= swap_critical:
+        messages.append(f"CRITICAL: Swap over {swap_use_percent:.2f}% used")
+        max_status = CRIT
+    elif swap_warning <= swap_use_percent < swap_critical:
+        messages.append(f"WARNING: Swap over {swap_use_percent:.2f}% used")
+        if max_status < WARN:
+            max_status = WARN
+
+    if not messages:  # All is OK
+        messages.append(f"OK: RAM is {mem_use_percent:.2f}%, Swap is {swap_use_percent:.2f}%")
+
+    # Combine all messages and exit with the highest severity found
+    final_message = ' | '.join(messages)
+    print(f"{final_message} | {mem_perf_data} {swap_perf_data}")
+    sys.exit(max_status)
 
 mem_load()
+
